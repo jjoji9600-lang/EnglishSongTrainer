@@ -1,4 +1,4 @@
-name: Android Debug APK
+name: Android APK and Release
 on:
   push:
     branches: [main]
@@ -6,6 +6,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -15,6 +18,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
@@ -22,8 +26,37 @@ jobs:
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - name: Test and assemble
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - name: Prepare APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk EnglishSongTrainer.apk
       - uses: actions/upload-artifact@v4
         with:
           name: EnglishSongTrainer-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: EnglishSongTrainer.apk
           if-no-files-found: error
+  publish:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: EnglishSongTrainer-debug
+      - name: Publish public release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="build-${GITHUB_RUN_NUMBER}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists: $tag"
+            exit 0
+          fi
+          gh release create "$tag" EnglishSongTrainer.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "English Song Trainer - build ${GITHUB_RUN_NUMBER}" \
+            --notes "Android test APK. Local media and timed lyrics; sentence repeat, playback speed, and shadowing pauses. Debug signature: updates between builds may require uninstalling the old version." \
+            --latest
