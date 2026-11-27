@@ -140,7 +140,7 @@ class MainActivity : Activity() {
         val speedBtn=btn("速度 1.0×"){}
         speedBtn.setOnClickListener{
             val v=floatArrayOf(0.5f,0.65f,0.75f,0.85f,1f,1.15f,1.25f,1.5f)
-            options("变速不变调",v.map{it.toString()+"×"}.toTypedArray(),v.indexOf(speed)){
+            options("变速不变调",v.map{it.toString()+"×"}.toTypedArray(),v.indexOfFirst { it == speed }){
                 speed=v[it];p.playbackParameters=PlaybackParameters(speed,1f);speedBtn.text="速度 "+speed+"×"
             }
         }
